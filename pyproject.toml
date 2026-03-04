@@ -7,7 +7,7 @@ name = "yamlaug"
 version = "0.0.0"
 description = "YAML augmentation tool (non-destructive YAML upgrader)"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
   {name = "Taishi Hashimoto", email = "hashimoto.taishi@outlook.com"},
@@ -19,7 +19,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-    "ruamel.yaml==0.19.1"
+    "ruamel.yaml"
 ]
 
 [project.scripts]
