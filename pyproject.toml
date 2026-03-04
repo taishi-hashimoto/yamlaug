@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yamlaug"
+version = "0.0.0"
+description = "YAML augmentation tool (non-destructive YAML upgrader)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+  {name = "Taishi Hashimoto", email = "hashimoto.taishi@outlook.com"},
+]
+classifiers = [
+  "Development Status :: 1 - Planning",
+  "Programming Language :: Python :: 3",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "ruamel.yaml==0.19.1"
+]
+
+[project.scripts]
+yamlaug = "yamlaug.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
