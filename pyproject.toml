@@ -19,7 +19,8 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
-    "ruamel.yaml"
+  "ruamel.yaml",
+  "chardet"
 ]
 
 [project.scripts]
