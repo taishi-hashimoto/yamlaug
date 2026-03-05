@@ -37,3 +37,77 @@ def test_cli_under_check_and_error(tmp_path: Path, capsys: pytest.CaptureFixture
 
     captured = capsys.readouterr()
     assert "yamlaug error: key not found: missing" in captured.err
+
+
+def test_cli_dry_run_color_never_outputs_plain_text(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "current.yaml"
+    extension = tmp_path / "extension.yaml"
+
+    current.write_text("a: 1\n", encoding="utf-8")
+    extension.write_text("a: 1\nb: 2\n", encoding="utf-8")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    rc = main([str(current), "--by", str(extension), "--dry-run", "--color", "never"])
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == "a: 1\nb: 2\n"
+    assert "\x1b[" not in captured.out
+
+
+def test_cli_dry_run_color_always_forces_ansi(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "current.yaml"
+    extension = tmp_path / "extension.yaml"
+
+    current.write_text("a: 1\n", encoding="utf-8")
+    extension.write_text("a: 1\nb: 2\n", encoding="utf-8")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    rc = main([str(current), "--by", str(extension), "--dry-run", "--color", "always"])
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    assert "\x1b[" in captured.out
+
+
+def test_cli_dry_run_color_auto_uses_ansi_on_tty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "current.yaml"
+    extension = tmp_path / "extension.yaml"
+
+    current.write_text("a: 1\n", encoding="utf-8")
+    extension.write_text("a: 1\nb: 2\n", encoding="utf-8")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    rc = main([str(current), "--by", str(extension), "--dry-run", "--color", "auto"])
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    assert "\x1b[" in captured.out
+
+
+def test_cli_dry_run_color_auto_outputs_plain_text_on_non_tty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "current.yaml"
+    extension = tmp_path / "extension.yaml"
+
+    current.write_text("a: 1\n", encoding="utf-8")
+    extension.write_text("a: 1\nb: 2\n", encoding="utf-8")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    rc = main([str(current), "--by", str(extension), "--dry-run", "--color", "auto"])
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == "a: 1\nb: 2\n"
+    assert "\x1b[" not in captured.out

@@ -17,6 +17,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--by", required=True, dest="extension")
     parser.add_argument("--under", default="")
     parser.add_argument("-n", "--dry-run", action="store_true")
+    parser.add_argument("--color", choices=["auto", "always", "never"], default="auto")
     parser.add_argument("-o", "--out")
     parser.add_argument("-c", "--check", action="store_true")
     parser.add_argument("-q", "--quiet", action="store_true")
@@ -44,6 +45,28 @@ def _print_warnings(report) -> None:
             print(f"{item.code}: {item.message} ({pointer})", file=sys.stderr)
         else:
             print(f"{item.code}: {item.message} ({pointer}, line {line})", file=sys.stderr)
+
+
+def _print_dry_run_yaml(text: str, *, color_mode: str = "auto") -> None:
+    if color_mode == "never":
+        print(text, end="")
+        return
+
+    is_tty = sys.stdout.isatty()
+    if color_mode == "auto" and not is_tty:
+        print(text, end="")
+        return
+
+    try:
+        from rich.console import Console
+        from rich.syntax import Syntax
+    except Exception:
+        print(text, end="")
+        return
+
+    force_terminal = color_mode == "always" or (color_mode == "auto" and is_tty)
+    console = Console(force_terminal=force_terminal)
+    console.print(Syntax(text, "yaml", line_numbers=False, word_wrap=False), end="")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             extension_text = load_text_file(Path(args.extension)).text
 
             augmented_text, report = augment_text(current_text, extension_text, **augment_options)
-            print(augmented_text, end="")
+            _print_dry_run_yaml(augmented_text, color_mode=args.color)
             _print_warnings(report)
             return 0
 

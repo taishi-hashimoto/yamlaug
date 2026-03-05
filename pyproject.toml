@@ -20,7 +20,8 @@ classifiers = [
 ]
 dependencies = [
   "ruamel.yaml",
-  "chardet"
+  "chardet",
+  "rich"
 ]
 
 [project.scripts]
