@@ -1,0 +1,106 @@
+# SDR radar control configuration file (Version 1.0)
+# Minimal sample for a basic single-receiver setup
+# USER NOTE: This is the file currently used on the bench rig (Antenna-A).
+# USER NOTE: Keep this as the "safe" fallback profile when newer configs fail.
+
+# Configuration format version
+version: "1.0"
+# Configuration profile name
+profile_name: "sdr_radar_base_v1"
+
+# Device connection settings
+device:
+  # Receiver device name
+  receiver: "bladeRF"
+  # Device serial number (auto selects automatically)
+  serial: "auto"
+  # Reference clock source
+  clock_source: "internal"
+
+# Radar operation settings
+radar:
+  # Radar mode
+  mode: "fmcw"
+  # Center frequency [Hz]
+  center_frequency_hz: 24125000000
+  # USER NOTE: Spec says 24.150 GHz, but local interference is high there.
+  # USER NOTE: 24.125 GHz was empirically cleaner in our lab environment.
+  # Transmit power [dBm]
+  tx_power_dbm: 8
+  # USER NOTE: Intentionally lower than default (10 dBm) to avoid ADC saturation at short range.
+
+# Waveform parameter settings
+waveform:
+  # Chirp duration [ms]
+  chirp_duration_ms: 2.0
+  # USER NOTE: Easier to debug than short chirps; keep until timing issue #12 is closed.
+  # Sweep bandwidth [Hz]
+  sweep_bandwidth_hz: 80000000
+  # USER NOTE: Using 80 MHz as a workaround for unstable detections seen at 100 MHz on this SDR.
+  # Chirp repetition interval [ms]
+  repetition_interval_ms: 5.0
+  # USER NOTE: 5 ms keeps CPU usage stable on the Mac mini test host.
+
+# Receive chain settings
+receiver:
+  # Sampling rate [Sps]
+  sample_rate_sps: 2000000
+  # USER NOTE: Not using 2.5 Msps due to occasional USB drops during long runs.
+  # Receive bandwidth [Hz]
+  bandwidth_hz: 1500000
+  # USER NOTE: Narrower BW reduces out-of-band clutter from nearby Wi-Fi harmonics.
+  # Receive gain [dB]
+  gain_db: 32
+  # USER NOTE: Calibrated against corner reflector run on 2026-02-27.
+  # IQ data format
+  iq_format: "sc16"
+  # USER NOTE: Keep sc16 for compatibility with legacy post-processing scripts.
+
+# Signal processing settings
+dsp:
+  # Window function applied before FFT
+  window: "hann"
+  # USER NOTE: Blackman gave cleaner sidelobes but reduced weak-target sensitivity too much.
+  # FFT size
+  fft_size: 2048
+  # USER NOTE: 4096 is preferred theoretically, but 2048 is real-time safe on current laptop.
+  # CFAR detection settings
+  cfar:
+    # Whether to enable CFAR
+    enabled: true
+    # Number of guard cells
+    guard_cells: 4
+    # USER NOTE: Guard < 4 caused self-leakage near strong static reflectors.
+    # Number of training cells
+    training_cells: 16
+    # USER NOTE: Kept smaller than v1.1 to reduce latency during live demo mode.
+    # Detection threshold [dB]
+    threshold_db: 13
+    # USER NOTE: Raised from 11 dB to suppress false alarms from ceiling fan returns.
+
+# Target tracking settings
+tracking:
+  # Whether to enable tracking
+  enabled: true
+  # Maximum number of simultaneous tracks
+  max_tracks: 20
+  # USER NOTE: Capped at 20 to avoid track explosion when people cross paths.
+  # Minimum SNR for track candidates [dB]
+  min_snr_db: 8
+  # USER NOTE: 6 dB was too noisy in corridor tests; 8 dB is current compromise.
+
+# Output settings
+output:
+  # Log output level
+  log_level: "info"
+  # USER NOTE: Keep info during operation; switch to debug only when reproducing bugs.
+  # Whether to enable raw IQ data saving
+  save_iq: false
+  # USER NOTE: Disabled to avoid filling SSD. Enable only for short diagnostic captures.
+  # Target report output rate [Hz]
+  target_report_hz: 5
+  # USER NOTE: 10 Hz looks smoother but overloaded downstream visualization last test.
+
+
+# Some notes: this configuration is intentionally conservative and focused on stability and compatibility with existing post-processing scripts. 
+#             Future versions will explore more aggressive settings for improved performance once the core system is verified to be stable.

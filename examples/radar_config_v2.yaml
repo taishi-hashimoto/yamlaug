@@ -1,0 +1,176 @@
+# SDR radar control configuration file (Version 2.0)
+# Extended sample with multi-channel, synchronization, and advanced processing
+
+# Configuration format version
+version: "2.0"
+# Schema identifier
+schema: "yamlaug.radar.config/v2"
+# Configuration profile name
+profile_name: "sdr_radar_multi_channel_v2"
+
+# Hardware configuration settings
+hardware:
+  # Receiver device settings
+  receiver:
+    # Receiver model name
+    model: "USRP B210"
+    # Device serial number (auto selects automatically)
+    serial: "auto"
+    # Clock settings
+    clock:
+      # Reference clock source
+      source: "external"
+      # External reference clock frequency [Hz]
+      ref_frequency_hz: 10000000
+  # Receive channel settings
+  channels:
+    # Channel 0 settings
+    - id: 0
+      # Channel role
+      role: "main"
+      # Whether to enable this channel
+      enabled: true
+    # Channel 1 settings
+    - id: 1
+      # Channel role
+      role: "aux"
+      # Whether to enable this channel
+      enabled: true
+
+# RF front-end settings
+rf:
+  # Center frequency [Hz]
+  center_frequency_hz: 24500000000
+  # Transmit chain settings
+  tx:
+    # Whether to enable transmit chain
+    enabled: true
+    # Transmit power [dBm]
+    power_dbm: 12
+    # Maximum duty cycle (0.0-1.0)
+    duty_cycle_limit: 0.35
+  # Receive chain settings
+  rx:
+    # LNA gain [dB]
+    lna_gain_db: 18
+    # VGA gain [dB]
+    vga_gain_db: 20
+
+# Waveform parameter settings
+waveform:
+  # Radar mode
+  type: "fmcw"
+  # Frame settings
+  frame:
+    # Number of chirps per frame
+    chirps_per_frame: 64
+    # Frame period [ms]
+    frame_period_ms: 40
+  # Chirp settings
+  chirp:
+    # Chirp duration [us]
+    duration_us: 1200
+    # Sweep bandwidth [Hz]
+    sweep_bandwidth_hz: 150000000
+    # Frequency slope [Hz/s]
+    slope_hz_per_s: 125000000000
+
+# Acquisition settings
+acquisition:
+  # Sampling rate [Sps]
+  sample_rate_sps: 5000000
+  # Decimation ratio
+  decimation: 2
+  # Sample format
+  format: "fc32"
+  # Synchronization settings
+  synchronization:
+    # Whether PPS synchronization is required
+    pps_required: true
+    # Synchronization wait timeout [ms]
+    timeout_ms: 3000
+
+# Signal processing settings
+processing:
+  # Range FFT settings
+  range_fft:
+    # FFT size
+    size: 4096
+    # Window function applied before FFT
+    window: "hann"
+  # Doppler FFT settings
+  doppler_fft:
+    # FFT size
+    size: 256
+    # Window function applied before FFT
+    window: "hann"
+  # Angle estimation settings
+  angle_estimation:
+    # Whether to enable angle estimation
+    enabled: true
+    # Angle estimation algorithm
+    method: "music"
+  # Detection settings
+  detection:
+    # Detection algorithm
+    algorithm: "ca-cfar"
+    # Number of guard cells [range, doppler]
+    guard_cells: [4, 2]
+    # Number of training cells [range, doppler]
+    training_cells: [24, 12]
+    # Probability of false alarm
+    pfa: 1.0e-6
+  # Clustering settings
+  clustering:
+    # Clustering method
+    method: "dbscan"
+    # Neighborhood radius [m]
+    eps_m: 1.2
+    # Minimum points per cluster
+    min_points: 4
+
+# Target tracking settings
+tracking:
+  # Tracking algorithm
+  engine: "ukf"
+  # Maximum number of simultaneous tracks
+  max_tracks: 80
+  # Track maintenance timeout [s]
+  track_timeout_s: 1.5
+  # Motion model
+  motion_model: "constant_velocity"
+
+# Telemetry output settings
+telemetry:
+  # Whether to enable telemetry output
+  enabled: true
+  # Transport protocol
+  transport: "udp"
+  # Destination address
+  destination: "239.10.10.10:5000"
+  # Report output rate [Hz]
+  report_rate_hz: 20
+
+# Storage settings
+storage:
+  # Raw IQ saving settings
+  raw_iq:
+    # Whether to enable saving
+    enabled: false
+    # Output path
+    path: "./capture/raw_iq"
+  # Detection result saving settings
+  detections:
+    # Whether to enable saving
+    enabled: true
+    # Output path
+    path: "./capture/detections"
+
+# Safety monitoring settings
+safety:
+  # Watchdog timeout [ms]
+  watchdog_timeout_ms: 2000
+  # Forced shutdown temperature [°C]
+  temperature_shutdown_c: 82
+  # Whether to inhibit transmission on fault
+  tx_inhibit_on_fault: true

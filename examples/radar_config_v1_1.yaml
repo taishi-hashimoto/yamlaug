@@ -1,0 +1,108 @@
+# SDR radar control configuration file (Version 1.1)
+# Enhanced sample extending v1
+
+# Configuration format version
+version: "1.1"
+# Configuration profile name
+profile_name: "sdr_radar_enhanced_v1_1"
+
+# Device connection settings
+device:
+  # Receiver device name
+  receiver: "bladeRF"
+  # Device serial number (auto selects automatically)
+  serial: "auto"
+  # Reference clock source
+  clock_source: "gpsdo"
+
+# Radar operation settings
+radar:
+  # Radar mode
+  mode: "fmcw"
+  # Center frequency [Hz]
+  center_frequency_hz: 24125000000
+  # Transmit power [dBm]
+  tx_power_dbm: 10
+  # Calibration settings
+  calibration:
+    # Whether to enable startup self-check
+    startup_self_check: true
+    # Whether to enable temperature compensation
+    temperature_compensation: true
+
+# Waveform parameter settings
+waveform:
+  # Chirp duration [ms]
+  chirp_duration_ms: 1.5
+  # Sweep bandwidth [Hz]
+  sweep_bandwidth_hz: 100000000
+  # Chirp repetition interval [ms]
+  repetition_interval_ms: 4.0
+  # Idle time within a frame [ms]
+  idle_time_ms: 0.2
+
+# Receive chain settings
+receiver:
+  # Sampling rate [Sps]
+  sample_rate_sps: 2500000
+  # Receive bandwidth [Hz]
+  bandwidth_hz: 2000000
+  # Receive gain [dB]
+  gain_db: 28
+  # Automatic gain control settings
+  agc:
+    # Whether to enable AGC
+    enabled: true
+    # Target RSSI level [dBFS]
+    target_rssi_dbfs: -14
+  # IQ data format
+  iq_format: "sc16"
+
+# Signal processing settings
+dsp:
+  # Window function applied before FFT
+  window: "blackman"
+  # FFT size
+  fft_size: 4096
+  # Clutter suppression settings
+  clutter_suppression:
+    # Whether to enable clutter suppression
+    enabled: true
+    # Clutter suppression algorithm
+    method: "moving_average"
+    # Smoothing factor
+    alpha: 0.15
+  # CFAR detection settings
+  cfar:
+    # Whether to enable CFAR
+    enabled: true
+    # CFAR mode
+    mode: "os-cfar"
+    # Number of guard cells
+    guard_cells: 4
+    # Number of training cells
+    training_cells: 24
+    # Detection threshold [dB]
+    threshold_db: 11
+
+# Target tracking settings
+tracking:
+  # Whether to enable tracking
+  enabled: true
+  # Maximum number of simultaneous tracks
+  max_tracks: 40
+  # Minimum SNR for track candidates [dB]
+  min_snr_db: 6
+  # Distance gate for track association [m]
+  association_gate_m: 3.5
+
+# Output settings
+output:
+  # Log output level
+  log_level: "debug"
+  # Whether to enable raw IQ data saving
+  save_iq: true
+  # IQ data output path
+  iq_path: "./data/iq"
+  # Target report output rate [Hz]
+  target_report_hz: 10
