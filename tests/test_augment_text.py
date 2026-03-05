@@ -353,6 +353,212 @@ b:
     assert "b:\n  keep: 1\n" in text
 
 
+def test_allow_overwrite_replaces_only_targeted_path() -> None:
+    current = "a: 1\nb: 1\n"
+    extension = "a: 9\nb: 2\n"
+
+    text, report = augment_text(current, extension, allow_overwrite=True, overwrite_path=["/a"])
+
+    assert "a: 9" in text
+    assert "b: 1" in text
+    assert report.changed is True
+
+
+def test_allow_overwrite_with_multiple_paths_is_or_condition() -> None:
+    current = "a: 1\nb: 1\nc: 1\n"
+    extension = "a: 9\nb: 8\nc: 7\n"
+
+    text, report = augment_text(
+        current,
+        extension,
+        allow_overwrite=True,
+        overwrite_path=["/a", "/c"],
+    )
+
+    assert "a: 9" in text
+    assert "b: 1" in text
+    assert "c: 7" in text
+    assert report.changed is True
+
+
+def test_allow_overwrite_requires_overwrite_path() -> None:
+    current = "a: 1\n"
+    extension = "a: 9\n"
+
+    try:
+        augment_text(current, extension, allow_overwrite=True)
+    except ValueError as exc:
+        assert "--allow-overwrite requires at least one --overwrite-path" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_overwrite_path_requires_allow_overwrite() -> None:
+    current = "a: 1\n"
+    extension = "a: 9\n"
+
+    try:
+        augment_text(current, extension, overwrite_path=["/a"])
+    except ValueError as exc:
+        assert "--overwrite-path requires --allow-overwrite" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_overwrite_path_outside_under_errors() -> None:
+    current = "a: 1\nb: 1\n"
+    extension = "a: 9\nb: 9\n"
+
+    try:
+        augment_text(
+            current,
+            extension,
+            under="/a",
+            allow_overwrite=True,
+            overwrite_path=["/b"],
+        )
+    except ValueError as exc:
+        assert "overwrite_path must be under under" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_overwrite_type_mismatch_skipped_without_flag() -> None:
+    current = "a: 1\n"
+    extension = "a:\n  x: 1\n"
+
+    text, report = augment_text(
+        current,
+        extension,
+        allow_overwrite=True,
+        overwrite_path=["/a"],
+        warn_all=True,
+    )
+
+    assert "a: 1" in text
+    assert any(warning.code == "YAG106" for warning in report.warnings)
+
+
+def test_overwrite_type_mismatch_applies_with_flag() -> None:
+    current = "a: 1\n"
+    extension = "a:\n  x: 1\n"
+
+    text, report = augment_text(
+        current,
+        extension,
+        allow_overwrite=True,
+        overwrite_path=["/a"],
+        allow_overwrite_different_type=True,
+        warn_all=True,
+    )
+
+    assert "x: 1" in text
+    assert any(warning.code == "YAG107" for warning in report.warnings)
+
+
+def test_allow_overwrite_moves_previous_value_to_default_overwrite_refuge() -> None:
+    current = "a: 1\nb: 1\n"
+    extension = "a: 9\nb: 2\n"
+
+    text, _ = augment_text(
+        current,
+        extension,
+        allow_overwrite=True,
+        overwrite_path=["/a"],
+    )
+
+    assert "a: 9" in text
+    assert "__yamlaug_overwritten_values__" in text
+    assert "  a: 1" in text
+
+
+def test_allow_overwrite_moves_previous_value_to_custom_overwrite_refuge() -> None:
+    current = "a: 1\n"
+    extension = "a: 9\n"
+
+    text, _ = augment_text(
+        current,
+        extension,
+        allow_overwrite=True,
+        overwrite_path=["/a"],
+        overwrite_refuge="__my_refuge__",
+    )
+
+    assert "__my_refuge__" in text
+    assert "  a: 1" in text
+
+
+def test_allow_overwrite_root_keeps_previous_root_under_refuge_root_slot() -> None:
+    current = "a: 1\n"
+    extension = "a: 9\n"
+
+    text, _ = augment_text(
+        current,
+        extension,
+        allow_overwrite=True,
+        overwrite_path=["/"],
+    )
+
+    assert "a: 9" in text
+    assert "__yamlaug_overwritten_values__" in text
+    assert "__root__" in text
+
+
+def test_overwrite_refuge_keeps_base_value_across_sequential_applies() -> None:
+    base = "a: 1\n"
+    ext1 = "a: 2\n"
+    ext2 = "a: 3\n"
+
+    text1, _ = augment_text(base, ext1, allow_overwrite=True, overwrite_path=["/a"])
+    text2, _ = augment_text(text1, ext2, allow_overwrite=True, overwrite_path=["/a"])
+
+    assert "a: 3" in text2
+    assert "__yamlaug_overwritten_values__" in text2
+    assert "  a: 1" in text2
+    assert "  a: 2" not in text2
+
+
+def test_expanded_scalar_refuge_accumulates_without_overwriting_existing_entry() -> None:
+    base = "root:\n  a: 1\n  b: 2\n"
+    ext1 = "root:\n  a:\n    x: 1\n  b: 2\n"
+    ext2 = "root:\n  a:\n    x: 1\n  b:\n    y: 2\n"
+
+    text1, _ = augment_text(base, ext1, allow_expand_scalar_to_dict=True)
+    text2, _ = augment_text(text1, ext2, allow_expand_scalar_to_dict=True)
+
+    assert "__yamlaug_expanded_scalar_values__" in text2
+    assert "a: 1" in text2
+    assert "b: 2" in text2
+
+
+def test_order_by_current_keeps_existing_key_order() -> None:
+    current = "b: 1\na: 1\nc: 1\n"
+    extension = "a: 9\nb: 8\nd: 4\n"
+
+    text, _ = augment_text(current, extension, order_by="current")
+
+    lines = text.splitlines()
+    b_index = lines.index("b: 1")
+    a_index = lines.index("a: 1")
+    c_index = lines.index("c: 1")
+    d_index = lines.index("d: 4")
+    assert b_index < a_index < c_index < d_index
+
+
+def test_order_by_extension_uses_extension_order_then_current_only() -> None:
+    current = "b: 1\na: 1\nc: 1\n"
+    extension = "a: 9\nb: 8\nd: 4\n"
+
+    text, _ = augment_text(current, extension, order_by="extension")
+
+    lines = text.splitlines()
+    a_index = lines.index("a: 1")
+    b_index = lines.index("b: 1")
+    d_index = lines.index("d: 4")
+    c_index = lines.index("c: 1")
+    assert a_index < b_index < d_index < c_index
+
+
 def test_under_missing_in_current_errors() -> None:
     current = "a: 1\n"
     extension = "a: 1\n"

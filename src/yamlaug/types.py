@@ -41,6 +41,11 @@ class Options:
     warn_all: bool = False
     allow_expand_scalar_to_dict: bool = False
     expanded_scalar_refuge: str = "__yamlaug_expanded_scalar_values__"
+    order_by: str = "current"
+    allow_overwrite: bool = False
+    overwrite_paths: tuple[str, ...] | None = None
+    overwrite_refuge: str = "__yamlaug_overwritten_values__"
+    allow_overwrite_different_type: bool = False
 
 
 def normalize_fill_empty_types(fill_empty_types: str | list[str] | tuple[str, ...] | set[str] | None) -> set[str]:
@@ -79,6 +84,11 @@ def normalize_options(
     warn_all: bool = False,
     allow_expand_scalar_to_dict: bool = False,
     expanded_scalar_refuge: str = "__yamlaug_expanded_scalar_values__",
+    order_by: str = "current",
+    allow_overwrite: bool = False,
+    overwrite_path: str | list[str] | tuple[str, ...] | set[str] | None = None,
+    overwrite_refuge: str = "__yamlaug_overwritten_values__",
+    allow_overwrite_different_type: bool = False,
 ) -> Options:
     if quiet and warn_all:
         raise ValueError("quiet and warn_all cannot both be true")
@@ -98,6 +108,39 @@ def normalize_options(
     if fill_empty_path is not None and not fill_empty_path.startswith("/"):
         raise ValueError("fill_empty_path must start with '/'")
 
+    if order_by not in {"current", "extension"}:
+        raise ValueError("order_by must be one of: current, extension")
+
+    if not overwrite_refuge:
+        raise ValueError("overwrite_refuge must not be empty")
+
+    normalized_overwrite_paths: tuple[str, ...] | None = None
+    if overwrite_path is not None:
+        if isinstance(overwrite_path, str):
+            raw_paths = [overwrite_path]
+        else:
+            raw_paths = [str(path) for path in overwrite_path]
+
+        normalized_list: list[str] = []
+        for raw_path in raw_paths:
+            if raw_path in ("", "/"):
+                normalized_path = "/"
+            else:
+                if not raw_path.startswith("/"):
+                    raise ValueError(f"overwrite_path must start with '/': {raw_path}")
+                normalized_path = raw_path.rstrip("/")
+
+            if normalized_path not in normalized_list:
+                normalized_list.append(normalized_path)
+
+        normalized_overwrite_paths = tuple(normalized_list)
+
+    if allow_overwrite and not normalized_overwrite_paths:
+        raise ValueError("--allow-overwrite requires at least one --overwrite-path")
+
+    if not allow_overwrite and normalized_overwrite_paths:
+        raise ValueError("--overwrite-path requires --allow-overwrite")
+
     return Options(
         under=under,
         under_norm=under_norm,
@@ -114,4 +157,9 @@ def normalize_options(
         warn_all=warn_all,
         allow_expand_scalar_to_dict=allow_expand_scalar_to_dict,
         expanded_scalar_refuge=expanded_scalar_refuge,
+        order_by=order_by,
+        allow_overwrite=allow_overwrite,
+        overwrite_paths=normalized_overwrite_paths,
+        overwrite_refuge=overwrite_refuge,
+        allow_overwrite_different_type=allow_overwrite_different_type,
     )

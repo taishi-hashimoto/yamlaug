@@ -401,19 +401,50 @@ def _attach_leading_comment_to_previous_current_key(
 
 
 def _move_scalar_to_refuge(root_map: Mapping[Any, Any], pointer: str, scalar_value: Any, refuge_key: str) -> None:
-    if refuge_key in root_map:
-        raise ValueError(f"refuge key already exists: {refuge_key}")
+    if refuge_key not in root_map:
+        root_map[refuge_key] = CommentedMap()
 
-    root_map[refuge_key] = CommentedMap()
     target = root_map[refuge_key]
+    if not isinstance(target, Mapping):
+        raise ValueError(f"refuge key is not a mapping: {refuge_key}")
     tokens = parse_json_pointer(pointer)
 
     for idx, token in enumerate(tokens):
         if idx == len(tokens) - 1:
-            target[token] = copy.deepcopy(scalar_value)
+            if token not in target:
+                target[token] = copy.deepcopy(scalar_value)
         else:
-            if token not in target or not isinstance(target[token], Mapping):
+            if token not in target:
                 target[token] = CommentedMap()
+            elif not isinstance(target[token], Mapping):
+                return
+            target = target[token]
+
+
+def _move_overwritten_value_to_refuge(root_map: Mapping[Any, Any], pointer: str, value: Any, refuge_key: str) -> None:
+    if refuge_key not in root_map:
+        root_map[refuge_key] = CommentedMap()
+
+    refuge_root = root_map[refuge_key]
+    if not isinstance(refuge_root, Mapping):
+        raise ValueError(f"overwrite refuge key is not a mapping: {refuge_key}")
+
+    tokens = parse_json_pointer(pointer)
+    if not tokens:
+        if "__root__" not in refuge_root:
+            refuge_root["__root__"] = copy.deepcopy(value)
+        return
+
+    target = refuge_root
+    for idx, token in enumerate(tokens):
+        if idx == len(tokens) - 1:
+            if token not in target:
+                target[token] = copy.deepcopy(value)
+        else:
+            if token not in target:
+                target[token] = CommentedMap()
+            elif not isinstance(target[token], Mapping):
+                return
             target = target[token]
 
 
@@ -612,6 +643,27 @@ def _augment_mapping(
         )
         changed = changed or child_changed
 
+    if options.order_by == "extension" and isinstance(current_map, (dict, CommentedMap)):
+        target_keys: list[Any] = []
+        for extension_key in extension_keys:
+            matched_key, _ = _find_matching_key(current_map, extension_key)
+            if matched_key is None:
+                continue
+            if matched_key not in target_keys:
+                target_keys.append(matched_key)
+
+        for current_key in list(current_map.keys()):
+            if current_key not in target_keys:
+                target_keys.append(current_key)
+
+        if hasattr(current_map, "move_to_end"):
+            for key in target_keys:
+                current_map.move_to_end(key)
+        else:
+            for key in target_keys:
+                value = current_map.pop(key)
+                current_map[key] = value
+
     if options.warn_current_only:
         for current_key in current_map.keys():
             if current_key not in extension_matched_keys and all(str(current_key) != str(ext_key) for ext_key in extension_map.keys()):
@@ -668,6 +720,86 @@ def _maybe_apply_fill_empty(
     return True
 
 
+def _is_overwrite_target(pointer: str, options: Options) -> bool:
+    if not options.allow_overwrite or not options.overwrite_paths:
+        return False
+    return any(pointer_is_under(pointer, overwrite_path) for overwrite_path in options.overwrite_paths)
+
+
+def _replace_root_in_place(current: Any, replacement: Any) -> bool:
+    if isinstance(current, (dict, CommentedMap)) and isinstance(replacement, Mapping):
+        current.clear()
+        for key, value in replacement.items():
+            current[key] = copy.deepcopy(value)
+        return True
+
+    if isinstance(current, (list, CommentedSeq)) and isinstance(replacement, (list, tuple, CommentedSeq)):
+        current.clear()
+        for item in replacement:
+            current.append(copy.deepcopy(item))
+        return True
+
+    return False
+
+
+def _maybe_apply_overwrite(
+    *,
+    current: Any,
+    extension: Any,
+    pointer: str,
+    options: Options,
+    report: Report,
+    root_current: Any,
+    parent: Any,
+    key_in_parent: Any,
+) -> bool:
+    if not _is_overwrite_target(pointer, options):
+        return False
+
+    if type(current) is not type(extension) and not options.allow_overwrite_different_type:
+        _emit_warning_if_enabled(
+            report=report,
+            options=options,
+            code="YAG106",
+            pointer=pointer,
+            message="overwrite skipped due to type mismatch",
+            current_node=current,
+            extension_node=extension,
+        )
+        return False
+
+    if pointer != "/":
+        if not isinstance(root_current, Mapping):
+            raise ValueError("overwrite refuge requires mapping root")
+        _move_overwritten_value_to_refuge(root_current, pointer, current, options.overwrite_refuge)
+
+    if parent is None:
+        previous_root = copy.deepcopy(current)
+        if not _replace_root_in_place(current, extension):
+            if type(current) is not type(extension):
+                raise ValueError(
+                    "cannot overwrite root with different type; use a non-root --overwrite-path"
+                )
+            raise ValueError("cannot overwrite root in-place for this YAML root type")
+        if not isinstance(current, Mapping):
+            raise ValueError("overwrite refuge requires mapping root")
+        _move_overwritten_value_to_refuge(current, pointer, previous_root, options.overwrite_refuge)
+    else:
+        parent[key_in_parent] = copy.deepcopy(extension)
+
+    warning_code = "YAG107" if type(current) is not type(extension) else "YAG105"
+    _emit_warning_if_enabled(
+        report=report,
+        options=options,
+        code=warning_code,
+        pointer=pointer,
+        message="node overwritten by extension",
+        current_node=current,
+        extension_node=extension,
+    )
+    return True
+
+
 def _augment_node(
     *,
     current: Any,
@@ -703,6 +835,18 @@ def _augment_node(
             extension_node=extension,
         )
         return False
+
+    if _maybe_apply_overwrite(
+        current=current,
+        extension=extension,
+        pointer=pointer,
+        options=options,
+        report=report,
+        root_current=root_current,
+        parent=parent,
+        key_in_parent=key_in_parent,
+    ):
+        return True
 
     if _maybe_apply_fill_empty(
         current=current,
@@ -804,8 +948,13 @@ def augment_text(
     warn_except: list[str] | tuple[str, ...] | None = None,
     quiet: bool = False,
     warn_all: bool = False,
+    order_by: str = "current",
     allow_expand_scalar_to_dict: bool = False,
     expanded_scalar_refuge: str = "__yamlaug_expanded_scalar_values__",
+    allow_overwrite: bool = False,
+    overwrite_path: str | list[str] | tuple[str, ...] | set[str] | None = None,
+    overwrite_refuge: str = "__yamlaug_overwritten_values__",
+    allow_overwrite_different_type: bool = False,
 ) -> tuple[str, Report]:
     options = normalize_options(
         under=under,
@@ -820,8 +969,13 @@ def augment_text(
         warn_except=warn_except,
         quiet=quiet,
         warn_all=warn_all,
+        order_by=order_by,
         allow_expand_scalar_to_dict=allow_expand_scalar_to_dict,
         expanded_scalar_refuge=expanded_scalar_refuge,
+        allow_overwrite=allow_overwrite,
+        overwrite_path=overwrite_path,
+        overwrite_refuge=overwrite_refuge,
+        allow_overwrite_different_type=allow_overwrite_different_type,
     )
 
     report = _report_with_defaults()
@@ -843,6 +997,11 @@ def augment_text(
         if not pointer_is_under(options.fill_empty_path, options.under_norm):
             raise ValueError("fill_empty_path must be under under")
         resolve_pointer(current_root, options.fill_empty_path)
+
+    if options.allow_overwrite and options.overwrite_paths:
+        for overwrite_path in options.overwrite_paths:
+            if not pointer_is_under(overwrite_path, options.under_norm):
+                raise ValueError("overwrite_path must be under under")
 
     _emit_unattached_comment_warnings(
         current_sub,
