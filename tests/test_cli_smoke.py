@@ -218,3 +218,30 @@ def test_cli_dry_run_applies_multiple_by_in_order(
 
     captured = capsys.readouterr()
     assert captured.out == "a: 1\nb: 2\nc: 3\n"
+
+
+def test_cli_dry_run_skip_missing_keys_does_not_add_new_mapping_key(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    current = tmp_path / "current.yaml"
+    extension = tmp_path / "extension.yaml"
+
+    current.write_text("a: 1\n", encoding="utf-8")
+    extension.write_text("a: 1\nb: 2\n", encoding="utf-8")
+
+    rc = main(
+        [
+            str(current),
+            "--by",
+            str(extension),
+            "--dry-run",
+            "--color",
+            "never",
+            "--skip-missing-keys",
+        ]
+    )
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == "a: 1\n"

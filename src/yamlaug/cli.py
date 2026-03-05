@@ -30,6 +30,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warn-under", action="append", default=[])
     parser.add_argument("--warn-except", action="append", default=[])
     parser.add_argument("--add-missing", action="store_true")
+    parser.add_argument("--skip-missing-keys", action="store_true")
     parser.add_argument("--warn-list-diff-len", action="store_true")
     parser.add_argument("--warn-list-diff-exact", action="store_true")
     parser.add_argument("--fill-empty-path")
@@ -123,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         fill_empty_path=args.fill_empty_path,
         fill_empty_types=args.fill_empty_types,
         add_missing=args.add_missing,
+        skip_missing_keys=args.skip_missing_keys,
         warn_list_diff_len=args.warn_list_diff_len,
         warn_list_diff_exact=args.warn_list_diff_exact,
         warn_current_only=args.warn_current_only,

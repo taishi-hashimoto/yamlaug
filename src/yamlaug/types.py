@@ -31,6 +31,7 @@ class Options:
     fill_empty_path: str | None = None
     fill_empty_types: set[str] = field(default_factory=set)
     add_missing: bool = False
+    skip_missing_keys: bool = False
     warn_list_diff_len: bool = False
     warn_list_diff_exact: bool = False
     warn_current_only: bool = False
@@ -74,6 +75,7 @@ def normalize_options(
     fill_empty_path: str | None = None,
     fill_empty_types: str | list[str] | tuple[str, ...] | set[str] | None = None,
     add_missing: bool = False,
+    skip_missing_keys: bool = False,
     warn_list_diff_len: bool = False,
     warn_list_diff_exact: bool = False,
     warn_current_only: bool = False,
@@ -147,6 +149,7 @@ def normalize_options(
         fill_empty_path=fill_empty_path,
         fill_empty_types=normalize_fill_empty_types(fill_empty_types),
         add_missing=add_missing,
+        skip_missing_keys=skip_missing_keys,
         warn_list_diff_len=warn_list_diff_len,
         warn_list_diff_exact=warn_list_diff_exact,
         warn_current_only=warn_current_only,

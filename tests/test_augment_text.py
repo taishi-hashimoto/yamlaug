@@ -56,6 +56,28 @@ def test_add_missing_on_scalar_list() -> None:
     assert report.statistics["list_items_added"] == 2
 
 
+def test_skip_missing_keys_skips_extension_only_mapping_keys() -> None:
+    current = "a: 1\n"
+    extension = "a: 1\nb: 2\n"
+
+    text, report = augment_text(current, extension, skip_missing_keys=True)
+
+    assert "a: 1" in text
+    assert "b: 2" not in text
+    assert report.statistics["added_keys"] == 0
+
+
+def test_skip_missing_keys_with_order_by_extension_keeps_current_only_keys() -> None:
+    current = "b: 1\na: 1\n"
+    extension = "a: 9\nc: 3\n"
+
+    text, _ = augment_text(current, extension, skip_missing_keys=True, order_by="extension")
+
+    assert "c: 3" not in text
+    lines = text.splitlines()
+    assert lines.index("a: 1") < lines.index("b: 1")
+
+
 def test_idempotence_data_model() -> None:
     current = "a: 1\n"
     extension = "a: 1\nb: 2\n"
