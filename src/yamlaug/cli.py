@@ -19,7 +19,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--by", required=True, action="append", dest="extensions")
     parser.add_argument("--under", default="")
     parser.add_argument("-n", "--dry-run", action="store_true")
-    parser.add_argument("--order-by", choices=["current", "extension"], default="current")
+    parser.add_argument(
+        "-k",
+        "--key-order-policy",
+        choices=["current", "extension"],
+        dest="key_order_policy",
+        default="current",
+        help=(
+            "Mapping key order policy. "
+            "'current' keeps the current file order and appends extension-only keys. "
+            "'extension' reorders keys to follow extension order first, then keeps current-only keys."
+        ),
+    )
     parser.add_argument("--color", choices=["auto", "always", "never"], default="auto")
     parser.add_argument("-o", "--out")
     parser.add_argument("-c", "--check", action="store_true")
@@ -135,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         warn_all=args.warn_all,
         allow_expand_scalar_to_dict=args.allow_expand_scalar_to_dict,
         expanded_scalar_refuge=args.expanded_scalar_refuge,
-        order_by=args.order_by,
+        key_order_policy=args.key_order_policy,
         allow_overwrite=args.allow_overwrite,
         overwrite_path=args.overwrite_paths,
         overwrite_refuge=args.overwrite_refuge,

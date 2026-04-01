@@ -67,11 +67,11 @@ def test_skip_missing_keys_skips_extension_only_mapping_keys() -> None:
     assert report.statistics["added_keys"] == 0
 
 
-def test_skip_missing_keys_with_order_by_extension_keeps_current_only_keys() -> None:
+def test_skip_missing_keys_with_key_order_policy_extension_keeps_current_only_keys() -> None:
     current = "b: 1\na: 1\n"
     extension = "a: 9\nc: 3\n"
 
-    text, _ = augment_text(current, extension, skip_missing_keys=True, order_by="extension")
+    text, _ = augment_text(current, extension, skip_missing_keys=True, key_order_policy="extension")
 
     assert "c: 3" not in text
     lines = text.splitlines()
@@ -137,6 +137,114 @@ root:
     assert "header comment" in text
     assert "keep description" in text
     assert "keep eol" in text
+
+
+def test_key_addition_does_not_duplicate_or_misindent_following_section_comment() -> None:
+        current = """
+waveform:
+    repetition_interval_ms: 5.0
+
+# Receive chain settings
+receiver:
+    sample_rate_sps: 2000000
+""".strip()
+        extension = """
+waveform:
+    repetition_interval_ms: 4.0
+    # Idle time within a frame [ms]
+    idle_time_ms: 0.2
+
+# Receive chain settings
+receiver:
+    sample_rate_sps: 2500000
+""".strip()
+
+        text, _ = augment_text(current, extension, key_order_policy="extension")
+
+        assert "idle_time_ms: 0.2" in text
+        assert "# Idle time within a frame [ms]" in text
+        assert text.count("# Receive chain settings") == 1
+        assert "\n  # Receive chain settings\n" not in text
+        assert "idle_time_ms: 0.2\n\n# Receive chain settings" in text
+        lines = text.splitlines()
+        idle_index = next(i for i, line in enumerate(lines) if "idle_time_ms: 0.2" in line)
+        idle_comment_index = next(i for i, line in enumerate(lines) if "# Idle time within a frame [ms]" in line)
+        assert lines.index("# Receive chain settings") < lines.index("receiver:")
+        assert idle_comment_index < idle_index
+        assert lines.index("# Receive chain settings") > idle_index
+
+
+def test_key_addition_keeps_existing_and_extension_comments_together() -> None:
+        current = """
+waveform:
+    repetition_interval_ms: 5.0
+    # current note
+""".strip()
+        extension = """
+waveform:
+    repetition_interval_ms: 4.0
+    # extension idle note
+    idle_time_ms: 0.2
+""".strip()
+
+        text, _ = augment_text(current, extension, key_order_policy="extension")
+
+        assert "# current note" in text
+        assert "# extension idle note" in text
+        assert "idle_time_ms: 0.2" in text
+
+
+def test_key_addition_keeps_blank_line_between_added_key_and_next_section() -> None:
+        current = """
+tracking:
+    min_snr_db: 8
+
+# Output settings
+output:
+    log_level: info
+""".strip()
+        extension = """
+tracking:
+    min_snr_db: 6
+    # Distance gate for track association [m]
+    association_gate_m: 3.5
+
+# Output settings
+output:
+    log_level: debug
+""".strip()
+
+        text, _ = augment_text(current, extension, key_order_policy="extension")
+
+        assert "# Distance gate for track association [m]" in text
+        assert "association_gate_m: 3.5\n\n# Output settings" in text
+        assert text.count("# Output settings") == 1
+
+
+def test_multiple_added_keys_keep_their_own_comments_in_order() -> None:
+        current = """
+root:
+    keep: 1
+""".strip()
+        extension = """
+root:
+    keep: 2
+    # first
+    added1: 10
+    # second
+    added2: 20
+""".strip()
+
+        text, _ = augment_text(current, extension, key_order_policy="extension")
+
+        assert "# first" in text
+        assert "# second" in text
+        lines = text.splitlines()
+        first_idx = next(i for i, line in enumerate(lines) if "# first" in line)
+        added1_idx = next(i for i, line in enumerate(lines) if "added1: 10" in line)
+        second_idx = next(i for i, line in enumerate(lines) if "# second" in line)
+        added2_idx = next(i for i, line in enumerate(lines) if "added2: 20" in line)
+        assert first_idx < added1_idx < second_idx < added2_idx
 
 
 def test_unattached_comment_warning_opt_in() -> None:
@@ -553,11 +661,11 @@ def test_expanded_scalar_refuge_accumulates_without_overwriting_existing_entry()
     assert "b: 2" in text2
 
 
-def test_order_by_current_keeps_existing_key_order() -> None:
+def test_key_order_policy_current_keeps_existing_key_order() -> None:
     current = "b: 1\na: 1\nc: 1\n"
     extension = "a: 9\nb: 8\nd: 4\n"
 
-    text, _ = augment_text(current, extension, order_by="current")
+    text, _ = augment_text(current, extension, key_order_policy="current")
 
     lines = text.splitlines()
     b_index = lines.index("b: 1")
@@ -567,11 +675,11 @@ def test_order_by_current_keeps_existing_key_order() -> None:
     assert b_index < a_index < c_index < d_index
 
 
-def test_order_by_extension_uses_extension_order_then_current_only() -> None:
+def test_key_order_policy_extension_uses_extension_order_then_current_only() -> None:
     current = "b: 1\na: 1\nc: 1\n"
     extension = "a: 9\nb: 8\nd: 4\n"
 
-    text, _ = augment_text(current, extension, order_by="extension")
+    text, _ = augment_text(current, extension, key_order_policy="extension")
 
     lines = text.splitlines()
     a_index = lines.index("a: 1")

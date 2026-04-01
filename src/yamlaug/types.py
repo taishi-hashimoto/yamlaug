@@ -42,7 +42,7 @@ class Options:
     warn_all: bool = False
     allow_expand_scalar_to_dict: bool = False
     expanded_scalar_refuge: str = "__yamlaug_expanded_scalar_values__"
-    order_by: str = "current"
+    key_order_policy: str = "current"
     allow_overwrite: bool = False
     overwrite_paths: tuple[str, ...] | None = None
     overwrite_refuge: str = "__yamlaug_overwritten_values__"
@@ -86,7 +86,7 @@ def normalize_options(
     warn_all: bool = False,
     allow_expand_scalar_to_dict: bool = False,
     expanded_scalar_refuge: str = "__yamlaug_expanded_scalar_values__",
-    order_by: str = "current",
+    key_order_policy: str = "current",
     allow_overwrite: bool = False,
     overwrite_path: str | list[str] | tuple[str, ...] | set[str] | None = None,
     overwrite_refuge: str = "__yamlaug_overwritten_values__",
@@ -110,8 +110,8 @@ def normalize_options(
     if fill_empty_path is not None and not fill_empty_path.startswith("/"):
         raise ValueError("fill_empty_path must start with '/'")
 
-    if order_by not in {"current", "extension"}:
-        raise ValueError("order_by must be one of: current, extension")
+    if key_order_policy not in {"current", "extension"}:
+        raise ValueError("key_order_policy must be one of: current, extension")
 
     if not overwrite_refuge:
         raise ValueError("overwrite_refuge must not be empty")
@@ -160,7 +160,7 @@ def normalize_options(
         warn_all=warn_all,
         allow_expand_scalar_to_dict=allow_expand_scalar_to_dict,
         expanded_scalar_refuge=expanded_scalar_refuge,
-        order_by=order_by,
+        key_order_policy=key_order_policy,
         allow_overwrite=allow_overwrite,
         overwrite_paths=normalized_overwrite_paths,
         overwrite_refuge=overwrite_refuge,

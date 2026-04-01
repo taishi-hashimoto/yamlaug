@@ -146,7 +146,7 @@ def test_cli_overwrite_path_requires_allow_overwrite(
     assert "--overwrite-path requires --allow-overwrite" in captured.err
 
 
-def test_cli_dry_run_order_by_extension_reorders_keys(
+def test_cli_dry_run_key_order_policy_extension_reorders_keys(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     current = tmp_path / "current.yaml"
@@ -163,7 +163,7 @@ def test_cli_dry_run_order_by_extension_reorders_keys(
             "--dry-run",
             "--color",
             "never",
-            "--order-by",
+            "--key-order-policy",
             "extension",
         ]
     )

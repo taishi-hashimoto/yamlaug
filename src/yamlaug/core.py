@@ -316,6 +316,26 @@ def _emit_yag104_for_mapping_collisions(
             )
 
 
+def _sanitize_new_key_comment_bundle(comment_bundle: Any) -> Any:
+    if not isinstance(comment_bundle, (list, tuple)):
+        return copy.deepcopy(comment_bundle)
+
+    copied = list(copy.deepcopy(comment_bundle))
+    if len(copied) >= 3:
+        token = copied[2]
+        text = getattr(token, "value", None)
+        if (
+            isinstance(text, str)
+            and text.startswith("\n")
+            and text.lstrip("\n").startswith("#")
+        ):
+            copied[2] = None
+
+    if all(part is None for part in copied):
+        return None
+    return copied
+
+
 def _clone_comment_for_new_key(extension_map: Mapping[Any, Any], key: Any) -> Any:
     comment_assoc = getattr(extension_map, "ca", None)
     if comment_assoc is None:
@@ -329,7 +349,39 @@ def _clone_comment_for_new_key(extension_map: Mapping[Any, Any], key: Any) -> An
     if key_comment is None:
         return None
 
-    return copy.deepcopy(key_comment)
+    return _sanitize_new_key_comment_bundle(key_comment)
+
+
+def _sanitize_leading_comment_bundle(comment_bundle: Any) -> Any:
+    def _sanitize_token(token: Any) -> Any:
+        text = getattr(token, "value", None)
+        if not isinstance(text, str):
+            return copy.deepcopy(token)
+
+        # Keep only the first contiguous comment block and drop detached blocks.
+        match = re.search(r"\n\s*\n\s*#", text)
+        trimmed = text[: match.start()] if match else text
+        if not trimmed.strip():
+            return None
+
+        if trimmed.startswith("\n") and trimmed.lstrip("\n").startswith("#"):
+            return None
+
+        cloned = copy.deepcopy(token)
+        cloned.value = trimmed if trimmed.endswith("\n") else f"{trimmed}\n"
+        return cloned
+
+    if isinstance(comment_bundle, list):
+        sanitized = [_sanitize_token(token) for token in comment_bundle]
+        sanitized = [token for token in sanitized if token is not None]
+        return sanitized or None
+
+    if isinstance(comment_bundle, tuple):
+        sanitized_list = [_sanitize_token(token) for token in comment_bundle]
+        sanitized_list = [token for token in sanitized_list if token is not None]
+        return tuple(sanitized_list) if sanitized_list else None
+
+    return _sanitize_token(comment_bundle)
 
 
 def _clone_leading_comment_attached_to_previous_key(extension_map: Mapping[Any, Any], key: Any) -> Any:
@@ -355,22 +407,7 @@ def _clone_leading_comment_attached_to_previous_key(extension_map: Mapping[Any, 
     if not prev_comment or len(prev_comment) < 3:
         return None
 
-    return copy.deepcopy(prev_comment[2])
-
-
-def _attach_comment_to_new_key(current_map: Mapping[Any, Any], key: Any, comment_bundle: Any) -> None:
-    if comment_bundle is None:
-        return
-
-    comment_assoc = getattr(current_map, "ca", None)
-    if comment_assoc is None:
-        return
-
-    items = getattr(comment_assoc, "items", None)
-    if not isinstance(items, dict):
-        return
-
-    items[key] = comment_bundle
+    return _sanitize_leading_comment_bundle(prev_comment[2])
 
 
 def _attach_leading_comment_to_previous_current_key(
@@ -398,6 +435,89 @@ def _attach_leading_comment_to_previous_current_key(
     if existing[2] is None:
         existing[2] = copy.deepcopy(leading_comment)
         items[previous_key] = existing
+        return
+
+    existing_token = existing[2]
+    existing_text = getattr(existing_token, "value", None)
+    leading_text = getattr(leading_comment, "value", None)
+    if not isinstance(existing_text, str) or not isinstance(leading_text, str):
+        return
+
+    if not leading_text.strip() or leading_text in existing_text:
+        return
+
+    merged_text = existing_text if existing_text.endswith("\n") else f"{existing_text}\n"
+    merged_text += leading_text
+
+    merged_token = copy.deepcopy(existing_token)
+    merged_token.value = merged_text if merged_text.endswith("\n") else f"{merged_text}\n"
+    existing[2] = merged_token
+    items[previous_key] = existing
+
+
+def _attach_comment_to_new_key(current_map: Mapping[Any, Any], key: Any, comment_bundle: Any) -> None:
+    if comment_bundle is None:
+        return
+
+    comment_assoc = getattr(current_map, "ca", None)
+    if comment_assoc is None:
+        return
+
+    items = getattr(comment_assoc, "items", None)
+    if not isinstance(items, dict):
+        return
+
+    items[key] = comment_bundle
+
+
+def _move_detached_trailing_comment_to_new_key(
+    current_map: Mapping[Any, Any],
+    previous_key: Any,
+    new_key: Any,
+) -> None:
+    comment_assoc = getattr(current_map, "ca", None)
+    if comment_assoc is None:
+        return
+
+    items = getattr(comment_assoc, "items", None)
+    if not isinstance(items, dict):
+        return
+
+    previous = items.get(previous_key)
+    if previous is None:
+        return
+
+    previous_parts = list(previous) + [None] * max(0, 4 - len(previous))
+    previous_token = previous_parts[2]
+    previous_text = getattr(previous_token, "value", None)
+    if not isinstance(previous_text, str):
+        return
+
+    # Detached section headers often appear as dedented comments in trailing slots.
+    boundary = re.search(r"\n\s*\n(?=#)", previous_text)
+    if boundary is None:
+        return
+
+    kept_text = previous_text[: boundary.start()]
+    detached_text = previous_text[boundary.start() :]
+    if not detached_text.strip():
+        return
+
+    if kept_text.strip():
+        kept_token = copy.deepcopy(previous_token)
+        kept_token.value = kept_text if kept_text.endswith("\n") else f"{kept_text}\n"
+        previous_parts[2] = kept_token
+    else:
+        previous_parts[2] = None
+    items[previous_key] = previous_parts
+
+    new_parts = list(items.get(new_key) or [None, None, None, None])
+    new_parts += [None] * max(0, 4 - len(new_parts))
+    if new_parts[2] is None:
+        detached_token = copy.deepcopy(previous_token)
+        detached_token.value = detached_text if detached_text.endswith("\n") else f"{detached_text}\n"
+        new_parts[2] = detached_token
+        items[new_key] = new_parts
 
 
 def _move_scalar_to_refuge(root_map: Mapping[Any, Any], pointer: str, scalar_value: Any, refuge_key: str) -> None:
@@ -609,6 +729,11 @@ def _augment_mapping(
                     previous_extension_key = extension_keys[index - 1]
                     previous_current_key, _ = _find_matching_key(current_map, previous_extension_key)
                     if previous_current_key is not None:
+                        _move_detached_trailing_comment_to_new_key(
+                            current_map,
+                            previous_current_key,
+                            extension_key,
+                        )
                         _attach_leading_comment_to_previous_current_key(
                             current_map,
                             previous_current_key,
@@ -645,7 +770,7 @@ def _augment_mapping(
         )
         changed = changed or child_changed
 
-    if options.order_by == "extension" and isinstance(current_map, (dict, CommentedMap)):
+    if options.key_order_policy == "extension" and isinstance(current_map, (dict, CommentedMap)):
         target_keys: list[Any] = []
         for extension_key in extension_keys:
             matched_key, _ = _find_matching_key(current_map, extension_key)
@@ -951,7 +1076,7 @@ def augment_text(
     warn_except: list[str] | tuple[str, ...] | None = None,
     quiet: bool = False,
     warn_all: bool = False,
-    order_by: str = "current",
+    key_order_policy: str = "current",
     allow_expand_scalar_to_dict: bool = False,
     expanded_scalar_refuge: str = "__yamlaug_expanded_scalar_values__",
     allow_overwrite: bool = False,
@@ -973,7 +1098,7 @@ def augment_text(
         warn_except=warn_except,
         quiet=quiet,
         warn_all=warn_all,
-        order_by=order_by,
+        key_order_policy=key_order_policy,
         allow_expand_scalar_to_dict=allow_expand_scalar_to_dict,
         expanded_scalar_refuge=expanded_scalar_refuge,
         allow_overwrite=allow_overwrite,
