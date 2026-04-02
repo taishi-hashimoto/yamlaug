@@ -784,3 +784,61 @@ def test_under_raises_on_ambiguous_bool_string_pointer_token() -> None:
         assert "ambiguous key token" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_migrate_moves_scalar_before_augment() -> None:
+    current = "old: 1\n"
+    extension = "new: 9\n"
+
+    text, report = augment_text(current, extension, migrate=["/old:/new"])
+
+    assert "old:" not in text
+    assert "new: 1" in text
+    assert report.changed is True
+
+
+def test_migrate_moves_mapping_subtree() -> None:
+    current = "legacy:\n  x: 1\n  y: 2\n"
+    extension = "next:\n  z: 3\n"
+
+    text, _ = augment_text(current, extension, migrate=["/legacy:/next"])
+
+    assert "legacy:" not in text
+    assert "next:" in text
+    assert "x: 1" in text
+    assert "z: 3" in text
+
+
+def test_migrate_existing_target_moves_previous_value_to_refuge() -> None:
+    current = "old: 1\nnew: 2\n"
+    extension = "new: 9\n"
+
+    text, _ = augment_text(current, extension, migrate=["/old:/new"])
+
+    assert "new: 1" in text
+    assert "__yamlaug_overwritten_values__" in text
+    assert "  new: 2" in text
+
+
+def test_migrate_under_restriction_errors_when_outside_under() -> None:
+    current = "a:\n  old: 1\nother: 2\n"
+    extension = "a:\n  new: 9\n"
+
+    try:
+        augment_text(current, extension, under="/a", migrate=["/other:/a/new"])
+    except ValueError as exc:
+        assert "migrate old_path must be under under" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_migrate_rejects_ancestor_descendant_paths() -> None:
+    current = "a:\n  b: 1\n"
+    extension = "a:\n  b: 1\n"
+
+    try:
+        augment_text(current, extension, migrate=["/a:/a/b"])
+    except ValueError as exc:
+        assert "must not be ancestor/descendant" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")

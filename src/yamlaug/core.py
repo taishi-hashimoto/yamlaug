@@ -32,6 +32,7 @@ def _report_with_defaults() -> Report:
             "type_mismatches": 0,
             "expanded_scalars": 0,
             "unattached_comments": 0,
+            "migrated_paths": 0,
         },
         outputs={},
     )
@@ -568,6 +569,87 @@ def _move_overwritten_value_to_refuge(root_map: Mapping[Any, Any], pointer: str,
             target = target[token]
 
 
+def _move_mapping_key_comment_bundle(source_map: Mapping[Any, Any], source_key: Any, target_map: Mapping[Any, Any], target_key: Any) -> None:
+    source_ca = getattr(source_map, "ca", None)
+    source_items = getattr(source_ca, "items", None)
+    if not isinstance(source_items, dict) or source_key not in source_items:
+        return
+
+    bundle = source_items.pop(source_key)
+
+    target_ca = getattr(target_map, "ca", None)
+    target_items = getattr(target_ca, "items", None)
+    if not isinstance(target_items, dict):
+        return
+
+    if target_key not in target_items:
+        target_items[target_key] = bundle
+
+
+def _resolve_new_mapping_parent_and_key(root: Any, pointer: str) -> tuple[Mapping[Any, Any], Any]:
+    tokens = parse_json_pointer(pointer)
+    if not tokens:
+        raise ValueError("migrate target pointer must not be root")
+
+    node = root
+    for token in tokens[:-1]:
+        if not isinstance(node, Mapping):
+            raise ValueError(f"migrate target parent is not mapping/sequence: {pointer}")
+
+        try:
+            resolved = resolve_mapping_key(node, token)
+        except ValueError:
+            node[token] = CommentedMap()
+            resolved = token
+
+        child = node[resolved]
+        if not isinstance(child, Mapping):
+            raise ValueError(f"migrate target parent path contains non-mapping node: {pointer}")
+        node = child
+
+    if not isinstance(node, Mapping):
+        raise ValueError(f"migrate target parent is not mapping: {pointer}")
+
+    key_token = tokens[-1]
+    try:
+        resolved_key = resolve_mapping_key(node, key_token)
+    except ValueError:
+        resolved_key = key_token
+    return node, resolved_key
+
+
+def _apply_migrations(*, root_current: Any, options: Options, report: Report) -> bool:
+    if not options.migrate_pairs:
+        return False
+
+    if not isinstance(root_current, Mapping):
+        raise ValueError("migrate requires mapping root")
+
+    changed = False
+
+    for old_pointer, new_pointer in options.migrate_pairs:
+        old_parent, old_key = _resolve_parent_and_key(root_current, old_pointer)
+        if not isinstance(old_parent, Mapping):
+            raise ValueError(f"migrate old_path parent must be mapping: {old_pointer}")
+
+        if old_key not in old_parent:
+            raise ValueError(f"migrate old_path not found: {old_pointer}")
+
+        old_value = old_parent.pop(old_key)
+        new_parent, new_key = _resolve_new_mapping_parent_and_key(root_current, new_pointer)
+
+        if new_key in new_parent:
+            _move_overwritten_value_to_refuge(root_current, new_pointer, new_parent[new_key], options.overwrite_refuge)
+
+        new_parent[new_key] = old_value
+        _move_mapping_key_comment_bundle(old_parent, old_key, new_parent, new_key)
+
+        report.statistics["migrated_paths"] += 1
+        changed = True
+
+    return changed
+
+
 def _augment_sequence(
     current_seq: Sequence[Any],
     extension_seq: Sequence[Any],
@@ -1083,6 +1165,7 @@ def augment_text(
     overwrite_path: str | list[str] | tuple[str, ...] | set[str] | None = None,
     overwrite_refuge: str = "__yamlaug_overwritten_values__",
     allow_overwrite_different_type: bool = False,
+    migrate: str | list[str] | tuple[str, ...] | set[str] | None = None,
 ) -> tuple[str, Report]:
     options = normalize_options(
         under=under,
@@ -1105,12 +1188,23 @@ def augment_text(
         overwrite_path=overwrite_path,
         overwrite_refuge=overwrite_refuge,
         allow_overwrite_different_type=allow_overwrite_different_type,
+        migrate=migrate,
     )
 
     report = _report_with_defaults()
 
     current_root, _ = load_yaml_rt(current_text, source_name="current")
     extension_root, _ = load_yaml_rt(extension_text, source_name="extension")
+    before_plain = to_plain_data(current_root)
+
+    if options.migrate_pairs:
+        if options.under_norm != "/":
+            for old_pointer, new_pointer in options.migrate_pairs:
+                if not pointer_is_under(old_pointer, options.under_norm):
+                    raise ValueError("migrate old_path must be under under")
+                if not pointer_is_under(new_pointer, options.under_norm):
+                    raise ValueError("migrate new_path must be under under")
+        _apply_migrations(root_current=current_root, options=options, report=report)
 
     if options.under_norm == "/":
         current_sub = current_root
@@ -1155,8 +1249,6 @@ def augment_text(
         extension_sub,
         start_pointer=options.under_norm,
     )
-
-    before_plain = to_plain_data(current_root)
 
     _augment_node(
         current=current_sub,

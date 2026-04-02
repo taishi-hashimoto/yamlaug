@@ -47,6 +47,7 @@ class Options:
     overwrite_paths: tuple[str, ...] | None = None
     overwrite_refuge: str = "__yamlaug_overwritten_values__"
     allow_overwrite_different_type: bool = False
+    migrate_pairs: tuple[tuple[str, str], ...] | None = None
 
 
 def normalize_fill_empty_types(fill_empty_types: str | list[str] | tuple[str, ...] | set[str] | None) -> set[str]:
@@ -91,6 +92,7 @@ def normalize_options(
     overwrite_path: str | list[str] | tuple[str, ...] | set[str] | None = None,
     overwrite_refuge: str = "__yamlaug_overwritten_values__",
     allow_overwrite_different_type: bool = False,
+    migrate: str | list[str] | tuple[str, ...] | set[str] | None = None,
 ) -> Options:
     if quiet and warn_all:
         raise ValueError("quiet and warn_all cannot both be true")
@@ -143,6 +145,48 @@ def normalize_options(
     if not allow_overwrite and normalized_overwrite_paths:
         raise ValueError("--overwrite-path requires --allow-overwrite")
 
+    normalized_migrate_pairs: tuple[tuple[str, str], ...] | None = None
+    if migrate is not None:
+        if isinstance(migrate, str):
+            raw_specs = [migrate]
+        else:
+            raw_specs = [str(spec) for spec in migrate]
+
+        normalized_pairs: list[tuple[str, str]] = []
+        for raw_spec in raw_specs:
+            if ":" not in raw_spec:
+                raise ValueError(f"migrate spec must be '<old_path>:<new_path>': {raw_spec}")
+
+            old_raw, new_raw = raw_spec.split(":", 1)
+
+            if old_raw in ("", "/"):
+                raise ValueError("migrate old_path must not be root")
+
+            if old_raw.startswith("/"):
+                old_norm = old_raw.rstrip("/")
+            else:
+                raise ValueError(f"migrate old_path must start with '/': {old_raw}")
+
+            if new_raw in ("", "/"):
+                raise ValueError("migrate new_path must not be root")
+
+            if new_raw.startswith("/"):
+                new_norm = new_raw.rstrip("/")
+            else:
+                raise ValueError(f"migrate new_path must start with '/': {new_raw}")
+
+            if old_norm == new_norm:
+                raise ValueError("migrate old_path and new_path must differ")
+
+            if new_norm.startswith(old_norm + "/") or old_norm.startswith(new_norm + "/"):
+                raise ValueError("migrate old_path and new_path must not be ancestor/descendant")
+
+            pair = (old_norm, new_norm)
+            if pair not in normalized_pairs:
+                normalized_pairs.append(pair)
+
+        normalized_migrate_pairs = tuple(normalized_pairs)
+
     return Options(
         under=under,
         under_norm=under_norm,
@@ -165,4 +209,5 @@ def normalize_options(
         overwrite_paths=normalized_overwrite_paths,
         overwrite_refuge=overwrite_refuge,
         allow_overwrite_different_type=allow_overwrite_different_type,
+        migrate_pairs=normalized_migrate_pairs,
     )

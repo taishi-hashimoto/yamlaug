@@ -245,3 +245,32 @@ def test_cli_dry_run_skip_missing_keys_does_not_add_new_mapping_key(
 
     captured = capsys.readouterr()
     assert captured.out == "a: 1\n"
+
+
+def test_cli_dry_run_migrate_moves_value(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    current = tmp_path / "current.yaml"
+    extension = tmp_path / "extension.yaml"
+
+    current.write_text("old: 1\n", encoding="utf-8")
+    extension.write_text("new: 9\n", encoding="utf-8")
+
+    rc = main(
+        [
+            str(current),
+            "--by",
+            str(extension),
+            "--dry-run",
+            "--color",
+            "never",
+            "--migrate",
+            "/old:/new",
+        ]
+    )
+    assert rc == 0
+
+    captured = capsys.readouterr()
+    assert "old:" not in captured.out
+    assert "new: 1" in captured.out

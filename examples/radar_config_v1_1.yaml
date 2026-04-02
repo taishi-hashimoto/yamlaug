@@ -20,7 +20,7 @@ radar:
   # Radar mode
   mode: "fmcw"
   # Center frequency [Hz]
-  center_frequency_hz: 24125000000
+  center_frequency_hz: 24150000000
   # Transmit power [dBm]
   tx_power_dbm: 10
   # Calibration settings

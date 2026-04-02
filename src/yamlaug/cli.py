@@ -52,6 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--overwrite-path", action="append", dest="overwrite_paths")
     parser.add_argument("--overwrite-refuge", default="__yamlaug_overwritten_values__")
     parser.add_argument("--allow-overwrite-different-type", action="store_true")
+    parser.add_argument("-m", "--migrate", action="append", dest="migrate_specs")
     parser.add_argument("--no-backup", action="store_true")
     return parser
 
@@ -151,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         overwrite_path=args.overwrite_paths,
         overwrite_refuge=args.overwrite_refuge,
         allow_overwrite_different_type=args.allow_overwrite_different_type,
+        migrate=args.migrate_specs,
     )
 
     try:
