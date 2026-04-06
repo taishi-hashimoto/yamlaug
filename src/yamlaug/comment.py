@@ -219,6 +219,11 @@ def _token_to_lines(token: Any) -> list[str]:
     lines = normalized.split("\n")
     if lines and lines[-1] == "":
         lines = lines[:-1]
+    if lines and lines[0] == "":
+        # ruamel comment token values often begin with a structural newline.
+        # Dropping one leading empty keeps explicit blank lines while avoiding
+        # an inconsistent extra empty item in the extracted output.
+        lines = lines[1:]
 
     result: list[str] = []
     for line in lines:
@@ -229,7 +234,7 @@ def _token_to_lines(token: Any) -> list[str]:
 
         marker = line.find("#")
         if marker >= 0:
-            text = line[marker + 1 :].lstrip()
+            text = line[marker + 1:].lstrip()
             result.append(text)
             continue
 

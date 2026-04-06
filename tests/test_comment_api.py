@@ -22,6 +22,9 @@ def test_extract_preceding_comments_v1_key_mapping_and_trailing() -> None:
     assert comments["/device/receiver"] == ["Receiver device name"]
     assert "Radar operation settings" in comments["/radar"]
     assert "" in comments["/device"]
+    assert comments["/profile_name"] == ["Configuration profile name"]
+    assert comments["/device"].count("") == 1
+    assert comments["/radar"].count("") == 1
 
     assert "Some notes: this configuration is intentionally conservative and focused on stability and compatibility with existing post-processing scripts. " in trailing
     assert "Future versions will explore more aggressive settings for improved performance once the core system is verified to be stable." in trailing
