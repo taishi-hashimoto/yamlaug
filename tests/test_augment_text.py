@@ -820,6 +820,36 @@ def test_migrate_existing_target_moves_previous_value_to_refuge() -> None:
     assert "  new: 2" in text
 
 
+def test_migrate_prunes_empty_source_parent_mappings() -> None:
+    current = """
+device:
+    receiver: bladeRF
+radar:
+    mode: fmcw
+""".strip()
+    extension = """
+hardware:
+    receiver:
+        model: usrp
+waveform:
+    type: pulse
+""".strip()
+
+    text, _ = augment_text(
+        current,
+        extension,
+        migrate=[
+            "/device/receiver:/hardware/receiver/model",
+            "/radar/mode:/waveform/type",
+        ],
+    )
+
+    assert "device:" not in text
+    assert "radar:" not in text
+    assert "model: bladeRF" in text
+    assert "type: fmcw" in text
+
+
 def test_migrate_under_restriction_errors_when_outside_under() -> None:
     current = "a:\n  old: 1\nother: 2\n"
     extension = "a:\n  new: 9\n"

@@ -586,6 +586,45 @@ def _move_mapping_key_comment_bundle(source_map: Mapping[Any, Any], source_key: 
         target_items[target_key] = bundle
 
 
+def _remove_mapping_key_comment_bundle(mapping: Mapping[Any, Any], key: Any) -> None:
+    comment_assoc = getattr(mapping, "ca", None)
+    if comment_assoc is None:
+        return
+
+    items = getattr(comment_assoc, "items", None)
+    if not isinstance(items, dict):
+        return
+
+    items.pop(key, None)
+
+
+def _prune_empty_mapping_ancestors(root: Any, pointer: str) -> None:
+    if pointer in ("", "/"):
+        return
+
+    tokens = parse_json_pointer(pointer)
+    while tokens:
+        parent_pointer = format_json_pointer(tokens[:-1])
+        key_token = tokens[-1]
+
+        parent_node = resolve_pointer(root, parent_pointer)
+        if not isinstance(parent_node, Mapping):
+            return
+
+        try:
+            key = resolve_mapping_key(parent_node, key_token)
+        except ValueError:
+            return
+
+        child = parent_node.get(key)
+        if not isinstance(child, Mapping) or len(child) > 0:
+            return
+
+        parent_node.pop(key)
+        _remove_mapping_key_comment_bundle(parent_node, key)
+        tokens = tokens[:-1]
+
+
 def _resolve_new_mapping_parent_and_key(root: Any, pointer: str) -> tuple[Mapping[Any, Any], Any]:
     tokens = parse_json_pointer(pointer)
     if not tokens:
@@ -628,6 +667,7 @@ def _apply_migrations(*, root_current: Any, options: Options, report: Report) ->
     changed = False
 
     for old_pointer, new_pointer in options.migrate_pairs:
+        old_parent_pointer = format_json_pointer(parse_json_pointer(old_pointer)[:-1])
         old_parent, old_key = _resolve_parent_and_key(root_current, old_pointer)
         if not isinstance(old_parent, Mapping):
             raise ValueError(f"migrate old_path parent must be mapping: {old_pointer}")
@@ -643,6 +683,7 @@ def _apply_migrations(*, root_current: Any, options: Options, report: Report) ->
 
         new_parent[new_key] = old_value
         _move_mapping_key_comment_bundle(old_parent, old_key, new_parent, new_key)
+        _prune_empty_mapping_ancestors(root_current, old_parent_pointer)
 
         report.statistics["migrated_paths"] += 1
         changed = True
