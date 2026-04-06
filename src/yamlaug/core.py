@@ -91,13 +91,15 @@ def _resolve_parent_and_key(root: Any, pointer: str) -> tuple[Any, Any]:
         try:
             index = int(key_token)
         except ValueError as exc:
-            raise ValueError(f"under pointer token is not a list index: {key_token}") from exc
+            raise ValueError(
+                f"under pointer token is not a list index: {key_token}") from exc
         if index < 0:
             raise ValueError("negative index is not allowed")
         return parent, index
 
     if not isinstance(parent, Mapping):
-        raise ValueError(f"under pointer parent is not mapping/sequence: {pointer}")
+        raise ValueError(
+            f"under pointer parent is not mapping/sequence: {pointer}")
     return parent, resolve_mapping_key(parent, key_token)
 
 
@@ -144,22 +146,27 @@ def _collect_unattached_comment_hits(node: Any, pointer: str = "/") -> list[tupl
                     if isinstance(token, list):
                         for nested in token:
                             if nested is not None and _is_detached_comment_like(nested):
-                                hits.append((child_pointer(pointer, item_key), nested, f"item[{slot_index}]"))
+                                hits.append(
+                                    (child_pointer(pointer, item_key), nested, f"item[{slot_index}]"))
                     elif token is not None and _is_detached_comment_like(token):
-                        hits.append((child_pointer(pointer, item_key), token, f"item[{slot_index}]"))
+                        hits.append((child_pointer(pointer, item_key),
+                                    token, f"item[{slot_index}]"))
 
     if isinstance(node, Mapping):
         for key, value in node.items():
-            hits.extend(_collect_unattached_comment_hits(value, child_pointer(pointer, key)))
+            hits.extend(_collect_unattached_comment_hits(
+                value, child_pointer(pointer, key)))
     elif isinstance(node, (list, tuple, CommentedSeq)):
         for idx, value in enumerate(node):
-            hits.extend(_collect_unattached_comment_hits(value, child_pointer(pointer, idx)))
+            hits.extend(_collect_unattached_comment_hits(
+                value, child_pointer(pointer, idx)))
 
     dedup: list[tuple[str, Any, str]] = []
     seen: set[tuple[str, int | None, str]] = set()
     for hit_pointer, token, origin in hits:
         start = getattr(token, "start_mark", None)
-        line_number = int(start.line) if start is not None and hasattr(start, "line") else None
+        line_number = int(start.line) if start is not None and hasattr(
+            start, "line") else None
         key = (hit_pointer, line_number, origin)
         if key in seen:
             continue
@@ -269,7 +276,8 @@ def _find_matching_key(current_map: Mapping[Any, Any], extension_key: Any) -> tu
     if extension_key in current_map:
         return extension_key, False
 
-    candidates = [existing_key for existing_key in current_map.keys() if str(existing_key) == str(extension_key)]
+    candidates = [existing_key for existing_key in current_map.keys() if str(
+        existing_key) == str(extension_key)]
     if len(candidates) == 1:
         return candidates[0], type(candidates[0]) is not type(extension_key)
 
@@ -379,7 +387,8 @@ def _sanitize_leading_comment_bundle(comment_bundle: Any) -> Any:
 
     if isinstance(comment_bundle, tuple):
         sanitized_list = [_sanitize_token(token) for token in comment_bundle]
-        sanitized_list = [token for token in sanitized_list if token is not None]
+        sanitized_list = [
+            token for token in sanitized_list if token is not None]
         return tuple(sanitized_list) if sanitized_list else None
 
     return _sanitize_token(comment_bundle)
@@ -447,11 +456,13 @@ def _attach_leading_comment_to_previous_current_key(
     if not leading_text.strip() or leading_text in existing_text:
         return
 
-    merged_text = existing_text if existing_text.endswith("\n") else f"{existing_text}\n"
+    merged_text = existing_text if existing_text.endswith(
+        "\n") else f"{existing_text}\n"
     merged_text += leading_text
 
     merged_token = copy.deepcopy(existing_token)
-    merged_token.value = merged_text if merged_text.endswith("\n") else f"{merged_text}\n"
+    merged_token.value = merged_text if merged_text.endswith(
+        "\n") else f"{merged_text}\n"
     existing[2] = merged_token
     items[previous_key] = existing
 
@@ -500,13 +511,14 @@ def _move_detached_trailing_comment_to_new_key(
         return
 
     kept_text = previous_text[: boundary.start()]
-    detached_text = previous_text[boundary.start() :]
+    detached_text = previous_text[boundary.start():]
     if not detached_text.strip():
         return
 
     if kept_text.strip():
         kept_token = copy.deepcopy(previous_token)
-        kept_token.value = kept_text if kept_text.endswith("\n") else f"{kept_text}\n"
+        kept_token.value = kept_text if kept_text.endswith(
+            "\n") else f"{kept_text}\n"
         previous_parts[2] = kept_token
     else:
         previous_parts[2] = None
@@ -516,7 +528,8 @@ def _move_detached_trailing_comment_to_new_key(
     new_parts += [None] * max(0, 4 - len(new_parts))
     if new_parts[2] is None:
         detached_token = copy.deepcopy(previous_token)
-        detached_token.value = detached_text if detached_text.endswith("\n") else f"{detached_text}\n"
+        detached_token.value = detached_text if detached_text.endswith(
+            "\n") else f"{detached_text}\n"
         new_parts[2] = detached_token
         items[new_key] = new_parts
 
@@ -548,7 +561,8 @@ def _move_overwritten_value_to_refuge(root_map: Mapping[Any, Any], pointer: str,
 
     refuge_root = root_map[refuge_key]
     if not isinstance(refuge_root, Mapping):
-        raise ValueError(f"overwrite refuge key is not a mapping: {refuge_key}")
+        raise ValueError(
+            f"overwrite refuge key is not a mapping: {refuge_key}")
 
     tokens = parse_json_pointer(pointer)
     if not tokens:
@@ -633,7 +647,8 @@ def _resolve_new_mapping_parent_and_key(root: Any, pointer: str) -> tuple[Mappin
     node = root
     for token in tokens[:-1]:
         if not isinstance(node, Mapping):
-            raise ValueError(f"migrate target parent is not mapping/sequence: {pointer}")
+            raise ValueError(
+                f"migrate target parent is not mapping/sequence: {pointer}")
 
         try:
             resolved = resolve_mapping_key(node, token)
@@ -643,7 +658,8 @@ def _resolve_new_mapping_parent_and_key(root: Any, pointer: str) -> tuple[Mappin
 
         child = node[resolved]
         if not isinstance(child, Mapping):
-            raise ValueError(f"migrate target parent path contains non-mapping node: {pointer}")
+            raise ValueError(
+                f"migrate target parent path contains non-mapping node: {pointer}")
         node = child
 
     if not isinstance(node, Mapping):
@@ -667,22 +683,28 @@ def _apply_migrations(*, root_current: Any, options: Options, report: Report) ->
     changed = False
 
     for old_pointer, new_pointer in options.migrate_pairs:
-        old_parent_pointer = format_json_pointer(parse_json_pointer(old_pointer)[:-1])
-        old_parent, old_key = _resolve_parent_and_key(root_current, old_pointer)
+        old_parent_pointer = format_json_pointer(
+            parse_json_pointer(old_pointer)[:-1])
+        old_parent, old_key = _resolve_parent_and_key(
+            root_current, old_pointer)
         if not isinstance(old_parent, Mapping):
-            raise ValueError(f"migrate old_path parent must be mapping: {old_pointer}")
+            raise ValueError(
+                f"migrate old_path parent must be mapping: {old_pointer}")
 
         if old_key not in old_parent:
             raise ValueError(f"migrate old_path not found: {old_pointer}")
 
         old_value = old_parent.pop(old_key)
-        new_parent, new_key = _resolve_new_mapping_parent_and_key(root_current, new_pointer)
+        new_parent, new_key = _resolve_new_mapping_parent_and_key(
+            root_current, new_pointer)
 
         if new_key in new_parent:
-            _move_overwritten_value_to_refuge(root_current, new_pointer, new_parent[new_key], options.overwrite_refuge)
+            _move_overwritten_value_to_refuge(
+                root_current, new_pointer, new_parent[new_key], options.overwrite_refuge)
 
         new_parent[new_key] = old_value
-        _move_mapping_key_comment_bundle(old_parent, old_key, new_parent, new_key)
+        _move_mapping_key_comment_bundle(
+            old_parent, old_key, new_parent, new_key)
         _prune_empty_mapping_ancestors(root_current, old_parent_pointer)
 
         report.statistics["migrated_paths"] += 1
@@ -850,7 +872,8 @@ def _augment_mapping(
                 )
                 if index > 0:
                     previous_extension_key = extension_keys[index - 1]
-                    previous_current_key, _ = _find_matching_key(current_map, previous_extension_key)
+                    previous_current_key, _ = _find_matching_key(
+                        current_map, previous_extension_key)
                     if previous_current_key is not None:
                         _move_detached_trailing_comment_to_new_key(
                             current_map,
@@ -860,7 +883,8 @@ def _augment_mapping(
                         _attach_leading_comment_to_previous_current_key(
                             current_map,
                             previous_current_key,
-                            _clone_leading_comment_attached_to_previous_key(extension_map, extension_key),
+                            _clone_leading_comment_attached_to_previous_key(
+                                extension_map, extension_key),
                         )
                 report.statistics["added_keys"] += 1
                 changed = True
@@ -1021,7 +1045,8 @@ def _maybe_apply_overwrite(
     if pointer != "/":
         if not isinstance(root_current, Mapping):
             raise ValueError("overwrite refuge requires mapping root")
-        _move_overwritten_value_to_refuge(root_current, pointer, current, options.overwrite_refuge)
+        _move_overwritten_value_to_refuge(
+            root_current, pointer, current, options.overwrite_refuge)
 
     if parent is None:
         previous_root = copy.deepcopy(current)
@@ -1030,14 +1055,17 @@ def _maybe_apply_overwrite(
                 raise ValueError(
                     "cannot overwrite root with different type; use a non-root --overwrite-path"
                 )
-            raise ValueError("cannot overwrite root in-place for this YAML root type")
+            raise ValueError(
+                "cannot overwrite root in-place for this YAML root type")
         if not isinstance(current, Mapping):
             raise ValueError("overwrite refuge requires mapping root")
-        _move_overwritten_value_to_refuge(current, pointer, previous_root, options.overwrite_refuge)
+        _move_overwritten_value_to_refuge(
+            current, pointer, previous_root, options.overwrite_refuge)
     else:
         parent[key_in_parent] = copy.deepcopy(extension)
 
-    warning_code = "YAG107" if type(current) is not type(extension) else "YAG105"
+    warning_code = "YAG107" if type(
+        current) is not type(extension) else "YAG105"
     _emit_warning_if_enabled(
         report=report,
         options=options,
@@ -1147,7 +1175,8 @@ def _augment_node(
             and parent is not None
             and isinstance(root_current, Mapping)
         ):
-            _move_scalar_to_refuge(root_current, pointer, current, options.expanded_scalar_refuge)
+            _move_scalar_to_refuge(root_current, pointer,
+                                   current, options.expanded_scalar_refuge)
             parent[key_in_parent] = copy.deepcopy(extension)
             report.statistics["expanded_scalars"] += 1
             _emit_warning_if_enabled(
@@ -1245,7 +1274,8 @@ def augment_text(
                     raise ValueError("migrate old_path must be under under")
                 if not pointer_is_under(new_pointer, options.under_norm):
                     raise ValueError("migrate new_path must be under under")
-        _apply_migrations(root_current=current_root, options=options, report=report)
+        _apply_migrations(root_current=current_root,
+                          options=options, report=report)
 
     if options.under_norm == "/":
         current_sub = current_root
@@ -1255,7 +1285,8 @@ def augment_text(
     else:
         current_sub = resolve_pointer(current_root, options.under_norm)
         extension_sub = resolve_pointer(extension_root, options.under_norm)
-        merge_parent, merge_key = _resolve_parent_and_key(current_root, options.under_norm)
+        merge_parent, merge_key = _resolve_parent_and_key(
+            current_root, options.under_norm)
 
     if options.fill_empty_path:
         if not pointer_is_under(options.fill_empty_path, options.under_norm):
